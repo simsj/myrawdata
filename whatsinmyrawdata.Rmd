@@ -1,0 +1,578 @@
+---
+title: "What's In My Raw Data?"
+author: "James Sims"
+date: "February 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Summary
+This document provides a high level overview of the raw data files customers can download from certain vendors that sell direct-to-consumer DNA tests for ancestry in the United States. These files contain the results of single nucleotide polymorphism (SNP) assays obtained and reported using technology described on the vendor web sites. The three direct-to-consumer DNA testing vendors covered in this report are, in alphabetical order, 23AndMe[^1], AncestryDNA[^2] and Family Tree DNA[^3]. Downloaded information was imported into the statistical programming environment known as R, and exploratory data analysis was performed. The target audience for this document is the curious amateur genetic genealogist. 
+
+[^1]:[23AndMe web site link: https://www.23andme.com/](https://www.23andme.com/)
+[^2]:[AncestryDNA web site link: https://www.ancestry.com/dna/](https://www.ancestry.com/dna/)
+[^3]:[Family Tree DNA web site link: https://www.familytreedna.com/](https://www.familytreedna.com/)
+
+##Introduction
+This document is part of the supplemental information provided online for a series of articles on genetic genealogy written by the author for *Acorns to Oaks*, the quarterly publication of the Oakland County Genealogical Society (Michigan, USA ocgsmi.org). At the time this document was prepared, AncestryDNA and 23AndMe offered only one ancestry DNA test, while Family Tree DNA offered many kinds of DNA testing for ancestry.  In the case of Family Tree DNA, the raw data for the Family Finder test is described here. In all cases, the raw data was downloaded from the author's account at each vendor, and the results are for samples of the author's own DNA.
+
+This document can be read in several different ways.  First, it can be read for the high level summary information it contains. This should provide genetic genealogists with a better understanding of their raw data. The document can also be read as an example of applying a few 3rd party software tools, most notably the open-source R statistical programming environment and the free version of RStudio, to understand DNA testing data in more detail.  As a result of reviewing this document, genetic genealogists should have a better appreciation for how raw data from different vendors must be pre-processed before meaningful comparisons can be made between vendors.  This certainly applies to 3rd party tools such as GEDmatch[^4], which can be used to find DNA matches of genealogical interest when the raw data comes from different vendors.  
+
+This document was authored entirely in the RStudio development environment using Rmarkdown and R. In this way, authors can combine prose, programming code and calculation results in a single document. This technique goes by the name of literate programming, and is a part of the reproducible research approach to reporting the results of data science projects. This study, not including the author's raw data, is available on the author's GitHub account[^5] and is provided to others under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) license.
+
+[^4]:[GEDmatch web site https://www.gedmatch.com](https://www.gedmatch.com)
+[^5]:[GitHub repository for this study.](https://github.com/simsj/myrawdata)
+
+##Raw Data Sources
+The author's raw SNP data for this report was manually downloaded following the instructions on each vendor's web site on 20 Dec 2016.  A guide to download raw data is available[^6]. Family Tree DNA offered several options for downloading the raw data for the Family Finder test.  The option chosen for this report was Build 37 concatenated.  AncestryDNA's process involved sending an email to the customer to complete the download process.  The other vendors allowed the author to download the raw data without leaving the vendor's web site after providing the correct password for the account.
+
+[^6]:Sims, James, S1. Locate the button to download your raw autosomal test results on a vendor web site, Supplemental Information for Autosomal DNA Part 1 in *Acorns to Oaks* 37(4) pps. 116-120, 2016, the quarterly publication of Oakland County Genealogical Society (Michigan),  [https://goo.gl/OW1JfO](https://goo.gl/OW1JfO)
+
+
+Vendor          | Compression | File format | Decompressed file size (MB)
+:-------------- | ----------: | ----------: | -------------------:
+23AndMe         | .zip        | .txt        | 25.6
+Ancestry        | .zip        | .txt        | 18.8
+Family Tree DNA | .gz         | .csv        | 24.5
+
+Table 1. Brief description of files downloaded from vendor web sites. A .txt file is a plain text file. A .csv is a comma separated value file commonly used to transfer text data to databases, spreadsheets and programming environments.  The abbreviation MB stands for megabytes.
+
+##Raw Data File Processing and Import in R
+**23AndMe—**The file downloaded from 23AndMe begins with several lines of comments describing the file and the format of the information. As described in the comments at the beginning of the file, the actual data consists of four pieces of information separated by tabs with a return at the end of each line. The comments at the top of the file are reproduced below in a code chunk. 
+
+```{r 23AndMecomments, echo=TRUE}
+# This data file generated by 23andMe at: Tue Dec 20 05:51:03 2016
+#
+# This file contains raw genotype data, including data that is not used in 23andMe reports.
+# This data has undergone a general quality review however only a subset of markers have been 
+# individually validated for accuracy. As such, this data is suitable only for research, 
+# educational, and informational use and not for medical or other use.
+# 
+# Below is a text version of your data.  Fields are TAB-separated
+# Each line corresponds to a single SNP.  For each SNP, we provide its identifier 
+# (an rsid or an internal id), its location on the reference human genome, and the 
+# genotype call oriented with respect to the plus strand on the human reference sequence.
+# We are using reference human assembly build 37 (also known as Annotation Release 104).
+# Note that it is possible that data downloaded at different times may be different due to ongoing 
+# improvements in our ability to call genotypes. More information about these changes can be found at:
+# https://www.23andme.com/you/download/revisions/
+# 
+# More information on reference human assembly build 37 (aka Annotation Release 104):
+# http://www.ncbi.nlm.nih.gov/mapview/map_search.cgi?taxid=9606
+#
+# rsid	chromosome	position	genotype
+```
+
+The data variables are named *rsid*, which contains the scientific name of the SNPs; *chromosome*,  the name of the chromosome; the base pair *position* on the chromosome where the SNP occurs; and *genotype*, which identifies which alleles (DNA bases) were detected.  
+
+Before the SNP data can be imported into the R statistical programming environment for further description and analysis, the uncompressed file was opened with TextEdit, a text editor for Apple, Inc. Macintosh computers, and the comments were deleted such that the variable names separated by tabs formed the first line (row) of the file. The file was saved to disk with the name my_23andme.txt.
+
+Before importing the raw data from this vendor, several packages of functions were loaded into the R environment to make reading files and manipulating data easier and more readable. 
+```{r include=TRUE, echo=TRUE}
+# set working directory to a GitHub linked local repository
+setwd("~/git/myrawdata")
+# load library packages to read and manipulate data
+library(readr)
+library(dplyr)
+library(gtools)
+```
+
+The following code chunk reads the file containing the 23AndMe raw data into R, and places the data in a data object R calls a dataframe. The last line of the code chunk tells R to print out the first two rows of the dataframe.
+
+```{r import23AndMe,include=TRUE, echo=TRUE, cache=TRUE}
+# import 23AndMe raw SNP alleles as a dataframe, specifying all variables as 
+# character variables except position, which is an integer
+snps_23AndMe <- data.frame(read_tsv("my_23andme.txt", col_names = TRUE, 
+                                    col_types = "ccic"))
+# print first two rows of datafame, show variable names as column headings
+snps_23AndMe[1:2,]
+```
+
+As can be seen in the code chunk above, each row of the snps_23AndMe dataframe contains all the values for a single SNP, including its name, which chromosome the SNP occurs on, the position on the chromosome where the SNP occurs and finally, the genotype information.  In the case of row 1, the author's two chromosomes named 1 had the same DNA base, A, at that SNP.  In contrast, on row 2 of the dataframe, the author had different bases (an A or a G) on each chromosome number 1 at that SNP.  
+
+The naming conventions for chromosomes was reviewed. The following code chunk tells R to print the names of chromosomes in the 23AndMe raw data file. 
+```{r chrNames23AndMe,include=TRUE, echo=TRUE, cache=FALSE}
+# print one instance of each name of each chromosome in the dataframe
+# R encloses printed values of the type character with quotes, 
+# which can be ignored
+unique(snps_23AndMe$chromosome)
+```
+ As can be seen from the output of the code chunk above, the names of the chromosomes in the snps_23AndMe dataframe are the numbers 1 through 22, plus X, Y and MT.  MT, means the mitochondrial chromosome.  
+
+
+**AncestryDNA—**The raw data file downloaded from AncestryDNA begins with several lines of comments describing the file and the format of the information. As described in the comments at the beginning of the file, the actual data consists of five pieces of information separated by tabs with a return at the end of each line.  The comments at the top of the file are reproduced below in a code chunk. 
+
+```{r ancestryDNAcomments, echo=TRUE}
+#AncestryDNA raw data download
+#This file was generated by AncestryDNA at: 12/20/2016 14:00:21 UTC
+#Data was collected using AncestryDNA array version: V1.0
+#Data is formatted using AncestryDNA converter version: V1.0
+#Below is a text version of your DNA file from Ancestry.com DNA, LLC.  THIS 
+#INFORMATION IS FOR YOUR PERSONAL USE AND IS INTENDED FOR GENEALOGICAL RESEARCH 
+#ONLY.  IT IS NOT INTENDED FOR MEDICAL OR HEALTH PURPOSES.  THE EXPORTED DATA IS 
+#SUBJECT TO THE AncestryDNA TERMS AND CONDITIONS, BUT PLEASE BE AWARE THAT THE 
+#DOWNLOADED DATA WILL NO LONGER BE PROTECTED BY OUR SECURITY MEASURES.
+#WHEN YOU DOWNLOAD YOUR RAW DNA DATA, YOU ASSUME ALL RISK OF STORING, 
+#SECURING AND PROTECTING YOUR DATA.  FOR MORE INFORMATION, SEE ANCESTRYDNA FAQS. 
+#
+#Genetic data is provided below as five TAB delimited columns.  Each line 
+#corresponds to a SNP.  Column one provides the SNP identifier (rsID where 
+#possible).  Columns two and three contain the chromosome and basepair position 
+#of the SNP using human reference build 37.1 coordinates.  Columns four and five 
+#contain the two alleles observed at this SNP (genotype).  The genotype is reported 
+#on the forward (+) strand with respect to the human reference.
+# rsid	chromosome	position	allele1	allele2
+```
+
+The data variables are *rsid*, which is the scientific name of the SNP; *chromosome*,  the name of the chromosome; the base pair *position* on the chromosome where the SNP occurs; *allele1*, which identifies which allele (DNA base) was detected on one chromosome, and *allele2*, which identifies the DNA base on the other chromosome. 
+
+Before the SNP data can be imported into the R statistical programming environment for further description and analysis, the file was opened with TextEdit, a text editor for Apple, Inc. Macintosh computers, and the comments were deleted such that the variable names separated by tabs formed the first line (row) of the file. The file was saved to disk with the name my_ancestryDNA.txt.  
+
+The following code chunk imports the AncestryDNA raw data into an R dataframe, and the last line of code tells R to print out the first two rows of the dataframe.  
+
+```{r importAncestry, include=TRUE, echo=TRUE, cache=TRUE}
+# import AncestryDNA raw SNP alleles as a dataframe, specifying all variables as 
+# character variables except position, which is an integer
+snps_ancestryDNA <- data.frame(read_tsv("my_ancestryDNA.txt", col_names = TRUE, 
+                                    col_types = "ccicc"))
+#print first two rows of datafame, show variable names as column headings
+snps_ancestryDNA[1:2,]
+```
+
+It was desirable to combine the values for *allele1* and *allele2* into a variable called *genotype*. It was also desirable to delete the variables *allele1* and *allele2* so that the dataframe for AncestryDNA matched that for 23AndMe in terms of the number of variables and the names of those variables.  
+
+```{r processAncestry, include=TRUE, echo=TRUE}
+# combine variables
+snps_ancestryDNA$genotype <- paste(snps_ancestryDNA$allele1,snps_ancestryDNA$allele2,sep="") 
+# delete unneeded variables
+snps_ancestryDNA <- snps_ancestryDNA[,c(1:3,6)]
+# print first two rows of dataframe, show variable names as column headings
+snps_ancestryDNA[1:2,]
+```
+
+The naming conventions used for chromosomes was reviewed for the AncestryDNA raw data file. The following code chunk shows the names of chromosomes reported on by AncestryDNA.
+
+```{r chrNamesAncestry, include=TRUE, echo=TRUE}
+# print one instance of each name of each chromosome in the dataframe
+unique(snps_ancestryDNA$chromosome)
+```
+In addition to the conventional numbers 1 through 22 for autosomal chromosomes, AncestryDNA reports data for chromosomes numbered 23, 24 and 25.  These last three numbers are often used to refer to X-chromosome SNPs, the pseudo-autosomal SNPS on X & Y chromosomes, and SNPs on the Y-chromosome. The names of SNP associated with chromosomes 23, 24 and 25 were inspected for the corresponding chromosome name in the 23AndMe dataframe, and were re-coded as X, Y and X, respectively by the code chunk below.
+
+```{r renameAncestryChromosomes, include=TRUE, echo=TRUE}
+# rename chromosomes 23, 24 and 25
+snps_ancestryDNA$chromosome[snps_ancestryDNA$chromosome == 23] <- "X"
+snps_ancestryDNA$chromosome[snps_ancestryDNA$chromosome == 24] <- "Y"
+snps_ancestryDNA$chromosome[snps_ancestryDNA$chromosome == 25] <- "X"
+```
+
+The results of renaming chromosomes 23, 24 and 25 was reviewed as shown in the code chunk below.
+
+```{r chrNamesAncestry_standardized, include=TRUE, echo=TRUE}
+# print one instance of each name of each chromosome in the dataframe
+unique(snps_ancestryDNA$chromosome)
+```
+
+
+**Family Tree DNA—**The file downloaded from Family Tree DNA contained no comments section, unlike the files downloaded from 23AndMe and AncestryDNA.  The file was opened with a modern version of Microsoft Excel, but other software could have been used. The first line of the .csv file contained the the names of four variables:  *RSID*, which is the scientific name of the SNP, *CHROMOSOME*, which is the name of the chromosome, *POSITION*, the base pair on the chromosome where the SNP is located, and *RESULT*, which contains the alleles (DNA bases) detected for the SNP.  The file was closed without changes. The file was renamed my_ftdna.csv and closed without modification. The following code chunk reads the raw data into R. 
+
+```{r importFTDNA, include=TRUE, echo=TRUE, cache=TRUE}
+# import Family Tree DNA raw SNP alleles as a dataframe, specifying all variables as 
+# character variables except position, which is an integer
+snps_ftdna <- data.frame(read_csv("my_ftdna.csv", col_names = TRUE, 
+                                    col_types = "ccic"))
+```
+
+The parsing failure on row 707270 while importing the data from Family Tree DNA is due to a row of variable names that precedes the X-chromosome data in the file.  It was appropriate therefore to delete that one row before further description and analysis. It was also useful to rename the variables (variable names are case sensitive in R) so they have the same names as the variables associated with the 23AndMe data.  
+
+```{r processFTDNA, include=TRUE, echo=TRUE}
+# delete extra row containing variable names
+snps_ftdna <- snps_ftdna[-707270,]
+# rename variables
+colnames(snps_ftdna) <- c("rsid","chromosome","position","genotype")
+# print first two rows of dataframe, show variable names as column headings
+snps_ftdna[1:2,]
+```
+
+The naming conventions for chromosomes was reviewed. The following code chunk tells R to print a list of chromosome names for Family Tree DNA. 
+```{r chrNamesFTDNA, include=TRUE, echo=TRUE}
+# print one instance of each name of each chromosome in the dataframe
+unique(snps_ftdna$chromosome)
+```
+The value zero is included in the list of chromosome names. It is often the case that SNPs which do not have known precise locations are assigned to a chromosome 0. There were `r nrow(filter(snps_ftdna,chromosome == "0"))` SNPs attributed to chromosome zero by Family Tree DNA. For the purposes of this document, the chromosome zero SNPs were removed from the dataframe for Family Tree DNA.
+
+```{r inspectNonStandardFTDNA, include=TRUE, echo=TRUE}
+# delete the SNPs attributed to chromosome zero for Family Tree DNA
+snps_ftdna <- filter(snps_ftdna, chromosome != "0") 
+# print revised list of chromosomes
+unique(snps_ftdna$chromosome)
+```
+
+
+##Exploratory Data Analysis
+**Number of SNPs Reported—**Having imported and processed the raw data downloaded from vendor web sites so that there was one R dataframe object for each vendor the three dataframes created as described above were then compared.  
+
+Vendor          | Number of SNPs |
+:-------------- | -------------: |
+23AndMe         | `r nrow(snps_23AndMe)`
+AncestryDNA     | `r nrow(snps_ancestryDNA)`
+Family Tree DNA | `r nrow(snps_ftdna)`
+
+Table 2. A comparison of the number of SNPs reported by each vendor in the downloaded raw data. It should be noted in the case of 23AndMe, the author had ordered autosomal DNA tests twice in different years when different gene chips were in use. The data downloaded from 23AndMe reflects this history.  
+
+As can be seen in Table 2 above, 23AndMe reported on many more SNPs that the other vendors did. This is primarily due to the health research emphasis at 23AndMe.  For example, the dataframe for 23AndMe contained `r nrow(snps_23AndMe)` rows of data, one row per SNP, compared to AncestryDNA's `r nrow(snps_ancestryDNA)` rows of SNPs. Vendors do change their technology over time and it may be the case that other customers have different numbers of SNPs in their raw data files than are reported here for the author's data.
+
+Next, the SNP lists for vendors were compared with regard to reporting X-chromosome SNPs.  
+
+Vendor          | Number of X-chromosome SNPs |
+:-------------- | --------------------------: |
+23AndMe         | `r nrow(filter(snps_23AndMe,chromosome == "X"))`
+AncestryDNA     | `r nrow(filter(snps_ancestryDNA,chromosome == "X"))`
+Family Tree DNA | `r nrow(filter(snps_ftdna,chromosome == "X"))`
+
+Table 3. A listing of the number of SNPs on the X-chromosome reported by vendors in downloads of autosomal DNA test results. 
+
+Next, the SNP lists for vendors were compared with regard to reporting Y-chromosome SNPs.  Family Tree DNA was the only vendor that does not include Y-chromosome SNPs in the raw data.  Family Tree DNA offers an extensive line of Y-chromosome SNP tests as separate products.
+
+Vendor          | Number of Y-chromosome SNPs |
+:-------------- | --------------------------: |
+23AndMe         | `r nrow(filter(snps_23AndMe,chromosome == "Y"))`
+AncestryDNA     | `r nrow(filter(snps_ancestryDNA,chromosome == "Y"))`
+Family Tree DNA | `r nrow(filter(snps_ftdna,chromosome == "Y"))`
+
+Table 4. A listing of the number of SNPs on the Y-chromosome reported by vendors in downloads of autosomal DNA test results.  
+
+Next, the SNP lists for vendors were compared with regard to reporting mitochondrial SNPs.  AncestryDNA reported no mitochondrial SNPs.  Family Tree DNA also reports no mitochondrial SNPs, however it should be noted that Family Tree offers additional products to analyze mitochondrial DNA including full sequencing of mitochondrial DNA.
+
+Vendor          | Number of mitochondrial SNPs |
+:-------------- | --------------------------: |
+23AndMe         | `r nrow(filter(snps_23AndMe,chromosome == "MT"))`
+AncestryDNA     | `r nrow(filter(snps_ancestryDNA,chromosome == "MT"))`
+Family Tree DNA | `r nrow(filter(snps_ftdna,chromosome == "MT"))`
+
+Table 5. A listing of the number of mitochondrial SNPs reported by vendors in downloads of autosomal DNA test results.  
+
+Based on the exploratory analysis performed above, it was desirable to exclude all of the Y-chromosome and mitochondrial SNPs for each vendor before making additional comparisons between vendors.  This process will result in a dataframe for each vendor containing SNPs for all the autosomes plus the X-chromosome SNPs. Autosomal SNPs and X-chromosome SNPs can be used to find autosomal and X-chromosome matches between customers of vendors, if the vendor provides tools to support such matching, or 3rd party tools such as GEDmatch are used to find matches when vendor-supplied tools are lacking.
+
+```{r create_rsid_vectors_and_genotypeDFs, include=TRUE, echo=TRUE,cache=TRUE}
+# remove Y and MT SNPs and save rsid values
+# use this information in the following tables
+# 23AndMe:
+rsid_23andme <- filter(snps_23AndMe, chromosome != "Y", 
+                        chromosome != "MT") %>%
+        select(rsid)
+
+# AncestryDNA:
+rsid_ancestryDNA  <- filter(snps_ancestryDNA, chromosome != "Y", 
+                           chromosome != "MT")  %>%
+        select(rsid)
+
+# FamilyTree DNA
+rsid_ftdna <- filter(snps_ftdna, chromosome != "Y", 
+                     chromosome != "MT") %>%
+        select(rsid)
+
+# use this information later in the article:
+# 23AndMe:
+small_23Andme <- filter(snps_23AndMe, chromosome != "Y", 
+                        chromosome != "MT") %>%
+        select(rsid,genotype)
+colnames(small_23Andme) <- c("rsid","geno23")
+
+# AncestryDNA:
+small_ancestryDNA <- filter(snps_ancestryDNA, chromosome != "Y", 
+                           chromosome != "MT")  %>%
+        select(rsid,genotype)
+colnames(small_ancestryDNA) <- c("rsid","genoAn")
+
+# Family Tree DNA:
+small_ftdna <- filter(snps_ftdna, chromosome != "Y", 
+                     chromosome != "MT") %>%
+        select(rsid,genotype)
+colnames(small_ftdna) <- c("rsid","genoFt")
+
+# create dataframes for pairs of vendors with SNPs in common
+common_snps_23AndMe_ftdna_geno <- Reduce(function(x,y) merge(x,y,all=FALSE),
+                                  list(small_23Andme, small_ftdna))
+common_23AndMe_ancestryDNA_geno <- Reduce(function(x,y) merge(x,y,all=FALSE),
+                                  list(small_23Andme, small_ancestryDNA))
+
+common_ancestryDNA_ftdna <- Reduce(function(x,y) merge(x,y,all=FALSE),
+                                  list(small_ancestryDNA,small_ftdna))
+
+# create one dataframe with SNPs in common for all three vendors
+# use this information in text immediately below
+common_snps_all_genotypes <- Reduce(function(x,y) merge(x,y,all=FALSE),
+                                  list(small_23Andme,small_ancestryDNA,
+                                       small_ftdna))
+```
+
+The names of SNPs reported by each vendor were compared.  When the SNPs of all three vendors were examined, `r nrow(common_snps_all_genotypes)` were common to all three vendors. In Table 6 below, the number of SNPs in common between pairs of vendors is shown.  
+
+In Common with:    | AncestryDNA                                          | Family Tree DNA
+-----------------: | --------------------------------------------------:  | ---------------------------------------------:
+SNPs at 23AndMe    | `r count(intersect(rsid_23andme,rsid_ancestryDNA))` |`r count(intersect(rsid_23andme,rsid_ftdna))`
+
+
+In Common with:      | 23AndMe                                              | Family Tree DNA
+-------------------: | --------------------------------------------------:  | ---------------------------------------------:
+SNPs at AncestryDNA  | `r count(intersect(rsid_ancestryDNA,rsid_23andme))` | `r count(intersect(rsid_ancestryDNA, rsid_ftdna))`
+
+
+In Common with:          | 23AndMe                                              | AncestryDNA
+-----------------------: | --------------------------------------------------:  | ---------------------------------------------:
+SNPs at Family Tree DNA  | `r count(intersect(rsid_ftdna,rsid_23andme))`       |  `r count(intersect(rsid_ftdna,rsid_ancestryDNA))` 
+
+Table 6. The number of SNPs in common between direct to consumer DNA testing for ancestry vendors offering autosomal DNA testing. These comparisons include autosomal chromosomes and X-chromosome SNPs. 
+
+
+Next, the following table shows the number of differences in SNPs between pairs of vendors.  
+
+Different from:           |  AncestryDNA                                         | Family Tree DNA
+-----------------------: | --------------------------------------------------:  | ---------------------------------------------:
+SNPs at 23AndMe          | `r count(setdiff(rsid_23andme,rsid_ancestryDNA))`   |`r count(setdiff(rsid_23andme,rsid_ftdna))`
+
+
+Different from:          | 23AndMe                                              | Family Tree DNA
+-----------------------: | --------------------------------------------------:  | ---------------------------------------------:
+SNPs at AncestryDNA      | `r count(setdiff(rsid_ancestryDNA,rsid_23andme))`   | `r count(setdiff(rsid_ancestryDNA,rsid_ftdna))`
+
+
+Different from:           | 23AndMe                                              | AncestryDNA
+------------------------: | --------------------------------------------------:  | ---------------------------------------------:
+SNPs at Family Tree DNA   | `r count(setdiff(rsid_ftdna,rsid_23andme))`         |  `r count(setdiff(rsid_ftdna,rsid_ancestryDNA))`
+
+Table 7. The number of SNPs that are different at pairs of vendors.  These comparisons include autosomal chromosomes and X-chromosome SNPs. Read these entries as, for example (middle), AncestryDNA reported `r count(setdiff(rsid_ancestryDNA,rsid_23andme))` SNPs that 23AndMe did not report, and AncestryDNA reported `r count(setdiff(rsid_ancestryDNA,rsid_ftdna))` SNPs that were not reported at Family Tree DNA.
+
+The following code chunk prints out a table showing the number of SNPs reported by each vendor for each chromosome excluding the Y-chromosome and mitochondrial DNA.
+
+```{r snpsPerChromosome, include=TRUE, echo=TRUE}
+# for each vendor:
+# filter out Y and mitochondrial SNPs
+# summarize the number of SNPs by chromosomes
+# 23AndMe:
+autoXcount23AndMe <- filter(snps_23AndMe, chromosome != "Y", 
+                       chromosome != "MT") %>%
+        group_by(chromosome) %>%
+        summarise(snpc_23AndMe = length(rsid))
+# AncestryDNA:
+autoXcountAncestryDNA <- filter(snps_ancestryDNA, chromosome != "Y", 
+                       chromosome != "MT") %>%
+        group_by(chromosome) %>%
+        summarise(snpc_anDNA = length(rsid))
+# Family Tree DNA:
+autoXcountFtdna <- filter(snps_ftdna, chromosome != "Y", 
+                       chromosome != "MT") %>%
+        group_by(chromosome) %>%
+        summarise(snpc_ftdna = length(rsid))
+# combine count lists, clean up table headings
+autoXThreeVendors <- bind_cols(autoXcount23AndMe, autoXcountAncestryDNA,autoXcountFtdna )
+autoXThreeVendors <- autoXThreeVendors[,c(1,2,4,6)]
+# sort a mixed variable, print summary showing the number of SNPs per chromosome
+options(tibble.print_max = Inf)
+autoXThreeVendors[mixedorder(autoXThreeVendors$chromosome),]
+```
+
+
+**Description of Reported Genotypes—**The following code chunk prints out one instance of each genotype reported in the dataframe for each vendor.  The numbers preceding the genotypes are row numbers of the first instance of a particular genotype, and can be ignored.  
+
+```{r analyzeGenotypes, include=TRUE, echo=TRUE}
+# show the unique geneotypes reported by each vendor
+# 23AndMe:
+geno23AndMe <- unique(filter(snps_23AndMe, chromosome != "Y", 
+                             chromosome != "MT") %>% 
+                              select(genotype))
+geno23AndMe
+# AncestryDNA:
+genoAncestryDNA <- unique(filter(snps_ancestryDNA, chromosome != "Y", 
+                                 chromosome != "MT") %>% 
+                                  select(genotype))
+genoAncestryDNA
+# Family Tree DNA:
+genoftdna <- unique(filter(snps_ftdna, chromosome != "Y", 
+                           chromosome != "MT") %>% 
+                            select(genotype))
+genoftdna
+```
+
+Looking at the different reported SNP genotypes, 23AndMe reports the most different SNP genotypes, and AncestryDNA reports the fewest different genotypes. Family Tree DNA provides an explanation of Illumina OmniExpress gene chip allele results and a guide to reading their raw data files[^6]. When a vendor reports a genotype as "- -", this means the DNA bases for that SNP could not be called with the required level of confidence.  When 23AndMe reports a D, this means a deletion was detected for that particular SNP.  When 23AndMe reports an I, this indicates an insertion of one or more DNA bases were present for that SNP.  23AndMe reports the geneotype for X-chromosome SNPs from an male as a single base. In contrast, Family Tree DNA and Ancestry DNA reported the X-chromosome SNPs as having two identical bases, when in reality, there is only one X-chromosome for the male sample the author provided. AncestryDNA also reports a genotype of OO, the meaning of which was not apparent from Google searches.
+
+[^6]:[Family Tree genotype codes and reading instructions link](https://www.familytreedna.com/learn/autosomal-ancestry/universal-dna-matching/read-family-finder-raw-data-file/)
+
+Vendor          | Number of No-call SNP genotypes                      |
+:-------------- | ---------------------------------------------------: |
+23AndMe         | `r nrow(filter(snps_23AndMe,genotype == "--"))`
+AncestryDNA     | `r nrow(filter(snps_ancestryDNA,genotype == "--"))`
+Family Tree DNA | `r nrow(filter(snps_ftdna,genotype == "--"))`
+
+Table 8. A listing of the number of no-call genotypes by vendor, where "--" was used as a no-call indicator. 
+
+**Comparison of SNP Genotypes Between Vendors—**Ideally, all vendors should report the same results, with perhaps the exception of no-calls, which may vary depending on sample quality, gene chip performance and software tuning factors. When looking at genotypes, two factors must be considered: (1) the DNA strand used to report the DNA base for the SNP, and (2) the order of bases reported. 
+
+With regard to strand, vendors can choose to provide a genotype based on the DNA bases present on either of the two DNA strands.  Each is correct. For example, if one vendor reports a genotype of AA for a particular SNP, another vendor may report the bases on the opposite complimentary strand, which in this case would be TT.  In this context, the AA and TT genotypes are the same, they are simply reported using bases on the opposite strand.  
+
+With regard to base order, the raw genotype data can be reported with the alleles in either order.  For example, a SNP genotype of GT is the same as TG.  The vendor simply reported the alleles in a different order.  The following short listing of SNPs and the genotypes each vendor reported shows no instances of strand-switched reporting, but does contain two examples in rows 6 and 8 showing 23AndMe reported the alleles in a different order compared to the other vendors.
+
+The following code chunk executes a very inefficient loop calling the function areSame(), which contains many comparisons between vendor genotypes, once for each of the `r nrow(common_snps_all_genotypes)` rows in a dataframe. The result of each call to areSame() is stored as a TRUE or FALSE value in the dataframe in a new variable called isSame.  The number of SNPs reported with different genotypes is reported, as is a table showing all the SNPs with genotypes that were called differently by the vendors.
+```{r geno_call_comparisons, include=TRUE, echo=TRUE, cache=TRUE}
+# example, first ten rows of genotypes reported by 23AndMe (geno23), 
+# AncestryDNA (genoAn) and Family Tree DNA (genoFt)
+common_snps_all_genotypes[1:10,]
+```
+
+```{r threeVendorAgreement, include=TRUE, echo=TRUE, cache=TRUE}
+# matching:
+# AA or TT = (AA AA) (TT TT) (AA TT) (TT AA)     # OK
+# GG or CC = (GG GG) (CC CC) (GG CC) (CC GG)     # OK
+# TA or AT = (AT AT) (TA TA) (AT TA) (TA AT)     # OK
+# AG or GA = (AG AG) (TC TC) (AG TC) (TC AG)     # OK
+# ----
+# GT or TG = (GT GT) (TG TG) (GT TG) (GT TG)     # OK 
+# CT or TC = (CT CT) (TC TC) (CT TC) (TC CT)     # OK
+# AC or CA = (AC AC) (CA CA) (AC CA) (CA AC)     # OK
+# a function to implement match comparisons:
+
+areSame <- function(geno1,matchAlleles){
+        # a function to compare three sets of genotypes
+        # takes a character string geno1, and a list of length 2
+        # returns logical TRUE or FALSE; temporarily returns NA for certain unhandled cases
+        if(nchar(geno1) != 2 ){
+                # convert single letter genotypes to double-letter homozygous genotypes
+                geno1 <- paste(geno1,geno1,sep="")
+                # allow continuation of function to proceed
+        }
+        if(nchar(matchAlleles) != 4){
+                # unhandled situations so far
+                return(NA)
+        }
+        # AA or TT = (AA AA) (TT TT) (AA TT) (TT AA)
+        if(geno1 == "AA" | geno1 == "TT"){
+                if(matchAlleles == "AAAA" | matchAlleles == "TTTT" | 
+                   matchAlleles == "AATT" |  matchAlleles == "TTAA"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        # GG or CC = (GG GG) (CC CC) (GG CC) (CC GG)
+        if(geno1 == "GG" | geno1 == "CC"){
+                if(matchAlleles == "GGGG" | matchAlleles == "CCCC" | 
+                   matchAlleles == "GGCC" |  matchAlleles == "CCGG"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        # TA or AT = (AT AT) (TA TA) (AT TA) (TA AT)
+        if(geno1 == "TA" | geno1 == "AT"){
+                if(matchAlleles == "ATAT" | matchAlleles == "TATA" | 
+                   matchAlleles == "ATTA" |  matchAlleles == "TAAT"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        # AG or GA = (AG AG) (TC TC) (AG TC) (TC AG)
+        if(geno1 == "AG" | geno1 == "GA"){
+                if(matchAlleles == "AGAG" | matchAlleles == "TCTC" |
+                   matchAlleles == "AGTC" |  matchAlleles == "TCAG"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        # GT or TG = (GT GT) (TG TG) (GT TG) (GT TG)
+        if(geno1 == "GT" | geno1 == "TG"){
+                if(matchAlleles == "GTGT" | matchAlleles == "TGTG" |
+                   matchAlleles == "GTTG" |  matchAlleles == "GTTG"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        # CT or TC = (CT CT) (TC TC) (CT TC) (TC CT)
+        if(geno1 == "CT" | geno1 == "TC"){
+                if(matchAlleles == "CTCT" | matchAlleles == "TCTC" |
+                   matchAlleles == "CTTC" |  matchAlleles == "TCCT"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        # AC or CA = (AC AC) (CA CA) (AC CA) (CA AC)
+        if(geno1 == "AC" | geno1 == "CA"){
+                if(matchAlleles == "ACAC" | matchAlleles == "CACA" |
+                   matchAlleles == "ACCA" |  matchAlleles == "CAAC"){
+                        return(TRUE)
+                }
+                else{
+                        return(FALSE)
+                }
+        }
+        return(NA)
+        
+}
+
+# run areSame on the three reports of genotyping; this loop is very slow to run
+# the system.time() funciton will report the number of seconds it takes to run the loop
+system.time(for(i in 1:nrow(common_snps_all_genotypes)){
+        common_snps_all_genotypes$isSame[i] <- areSame(common_snps_all_genotypes$geno23[i],
+                                                      paste(common_snps_all_genotypes$genoAn[i],
+                                                            common_snps_all_genotypes$genoFt[i],
+                                                            sep="")) 
+})
+print(paste("Excluding no-call genotypes, there were ",
+            nrow(filter(common_snps_all_genotypes,
+                        isSame == FALSE, 
+                        genoAn != "00", 
+                        genoFt != "--", 
+                        geno23 != "--")),
+            " SNP genotypes that were called differently.",sep=""))
+
+# a table of SNPs called differently by the vendors
+filter(common_snps_all_genotypes,
+                        isSame == FALSE, 
+                        genoAn != "00", 
+                        genoFt != "--", 
+                        geno23 != "--")
+```
+
+
+##Discussion
+The results reported in this document are specific for the author's experience with autosomal DNA testing at the vendors included in this report.  Vendors do change technology from time to time, and the number of SNPs tested and the identity of SNPs tested can vary for a single vendor and among vendors over time.  Use these results as a guide.
+
+As shown in Tables 2, 3, 4 and 5, vendors analyzed different numbers of SNPs on the autosomes and the X-chromosome.  One vendor, 23AndMe, reported SNPs for the Y-chromosome and for mitochondrial chromosome. One vendor, Family Tree DNA, reported no SNPs for the Y-chromosome or the mitochondrial chromosome.  This choice by Family Tree DNA probably reflects the fact that the company sells an extensive line of Y-chromosome SNP tests as separate products and it also offers mitochondrial DNA analysis testing separately.
+
+In this study, there were `r nrow(common_snps_all_genotypes)` SNPs that each of the three vendors analyzed and reported on.  Excluding the no-call genotypes, of these SNPs, only `r nrow(filter(common_snps_all_genotypes, isSame == FALSE, genoAn != "00", genoFt != "--", geno23 != "--"))` SNPs were called differently. This amounts to agreement on individual SNP calls of approximately `r round((1-(nrow(filter(common_snps_all_genotypes, isSame == FALSE, genoAn != "00", genoFt != "--", geno23 != "--")) / nrow(common_snps_all_genotypes) )) * 100,3)` percent, which is pretty impressive!
+
+
+##Computing Environment
+
+Hardware & software      | Version          | Use                                    |
+:----------------------  |----------------: |---------------------------------------:|
+Apple, Inc. iMac computer| Mid 2015         | hardware                               |
+OSX                      | 10.11.6          | operating system                       |
+RStudio[^7]              | 1.0.44           | authoring Rmarkdown & R programming    |
+R[^8]                    | 3.3.2            | R programming environment              | 
+dplyr package[^9]        | 0.5.0            | dataframe manipulation in R            |
+readr package[^10]       | 1.0.0            | read data into R                       |
+knitr package[^11]       | 1.15.1           | authoring Rmarkdown                    |
+gtools package[^12]      | 3.5.0            | sorting on mixed data                  |
+MacTEX[^13]              | 20161009         | render Rmarkdown to pdf                |
+TextEdit                 | 1.11 (325)       | examine and remove comments in files   |
+Microsoft Excel for Mac  | 15.29.1 (161215) | preview .csv file                      |        
+
+[^7]:[RStudio](https://www.rstudio.com/)
+[^8]:[R-project.org](https://www.r-project.org/)
+[^9]:[dplyr package on CRAN](https://cran.r-project.org/web/packages/dplyr/index.html)
+[^10]:[readr package on CRAN](https://cran.r-project.org/web/packages/readr/index.html) 
+[^11]:[knitr package on CRAN](https://cran.r-project.org/web/packages/knitr/index.html)
+[^12]:[gtools package on CRAN](https://cran.r-project.org/web/packages/gtools/index.html)
+[^13]:[MacTEX](http://www.tug.org/mactex/)
